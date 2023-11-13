@@ -538,100 +538,100 @@ get_atmo_dep <- function(catchment_boundary_path, t_ext = "year", start_year = 1
 #' result <- load_netcdf_weather(data_path, basin_path)
 #' }
 
-load_netcdf_weather <- function(dir_path, location){
-  ##Checking inputs
-  if(!is.character(dir_path)){
+load_netcdf_weather <-function (dir_path, location) 
+{
+  if (!is.character(dir_path)) {
     stop("Your input to function parameter 'dir_path' is not character!!! Please correct this.")
   }
   fs <- list.files(dir_path, recursive = T)
-  if(length(fs)==0){
-    stop(paste0("No netCDF data were found on ", dir_path, " path!!! 
-                Please check your path and consult function documentation."))
+  if (length(fs) == 0) {
+    stop(paste0("No netCDF data were found on ", dir_path, 
+                " path!!! \n                Please check your path and consult function documentation."))
   }
-  if(!is.character(location)|is.list(location)){
+  if (!(is.character(location)) & !(is.list(location))) {
     stop(paste0("`location` parameter input is ", class(location), 
-                "Only possible inputs are of character or list type. 
-                Please consult function documentation."))
+                " TEST Only possible inputs are of character or list type. \n                Please consult function documentation."))
   }
-  ##In case path to shape is given
-  if (is(class(location), "character")){
-    basin <- st_read(location, quiet = TRUE) %>% 
-      st_transform(4326)
-    ##Grid vector created
-    grid_vec <- st_as_sf(rasterToPolygons(brick(paste0(dir_path, "/", fs[[1]]))[[1]]), crs = st_crs(4326))
-    ##Finding overlap with basin
-    suppressMessages(suppressWarnings({touch_basin <- st_overlaps(grid_vec, basin)}))
+  if (is(met_lst, "character")) {
+    basin <- st_read(location, quiet = TRUE) %>% st_transform(4326)
+    grid_vec <- st_as_sf(rasterToPolygons(brick(paste0(dir_path, 
+                                                       "/", fs[[1]]))[[1]]), crs = st_crs(4326))
+    suppressMessages(suppressWarnings({
+      touch_basin <- st_overlaps(grid_vec, basin)
+    }))
     touch_basin[lengths(touch_basin) == 0] <- 0
-    ##If no overlap stop it
-    if(all(unlist(touch_basin)==0)){
+    if (all(unlist(touch_basin) == 0)) {
       stop("You basin boundary and netCDF data do not overlap!!! Please correct data or use different set/s.")
     }
-    ##Filter vector grid and use centroid to create monitoring point attribute data
     grid_vec$touch_basin <- unlist(touch_basin)
-    grid_vec <- grid_vec[grid_vec$touch_basin == 1,]
-    suppressWarnings({grid_centroid <- st_centroid(grid_vec)})
-    st <- grid_centroid %>% 
-      select() %>% 
-      get_elev_point(src = "aws") %>% 
-      rename(Elevation = elevation) %>% 
-      mutate(ID = paste0("ID",rownames(.)),
-             Name = paste0("ID",rownames(.)),
-             Source = "Grid",
-             Long = unlist(map(geometry,1)),
-             Lat = unlist(map(geometry,2))) %>% 
-      select(ID, Name, Elevation, Source, geometry, Long, Lat)
-    ##If meteo_lst is used, use sf data.frame for stations 
-  } else if (is(class(location), "list")){
-    st <-  location[["stations"]]
-    if (!grepl("4326", st_crs(st)$input)){
+    grid_vec <- grid_vec[grid_vec$touch_basin == 1, ]
+    suppressWarnings({
+      grid_centroid <- st_centroid(grid_vec)
+    })
+    st <- grid_centroid %>% select() %>% get_elev_point(src = "aws") %>% 
+      rename(Elevation = elevation) %>% mutate(ID = paste0("ID", 
+                                                           rownames(.)), Name = paste0("ID", rownames(.)), Source = "Grid", 
+                                               Long = unlist(map(geometry, 1)), Lat = unlist(map(geometry, 
+                                                                                                 2))) %>% select(ID, Name, Elevation, Source, 
+                                                                                                                 geometry, Long, Lat)
+  }
+  else if (is(location, "list")) {
+    st <- location[["stations"]]
+    if (!grepl("4326", st_crs(st)$input)) {
       st <- st_transform(st, 4326)
       print("Coordinate system checked and transformed to EPSG:4326.")
-    } 
+    }
   }
-  ##Load netCDF
   cl_list <- list()
-  for (f in fs){
-    if(grepl("prec|Tmax|Tmin|solarRad|windSpeed|relHum", f)){
-      if (grepl("prec", f)){
+  cl_list[["stations"]] <- st
+  cl_list[["data"]] <- list()
+  
+  for (f in fs) {
+    if (grepl("prec|Tmax|Tmin|solarRad|windSpeed|relHum", f)) {
+      if (grepl("prec", f)) {
         p <- "PCP"
-      } else if (grepl("Tmax", f)){
+      }
+      else if (grepl("Tmax", f)) {
         p <- "TMP_MAX"
-      } else if (grepl("Tmin", f)){
+      }
+      else if (grepl("Tmin", f)) {
         p <- "TMP_MIN"
-      } else if (grepl("solarRad", f)){
+      }
+      else if (grepl("solarRad", f)) {
         p <- "SLR"
-      } else if (grepl("windSpeed", f)){
+      }
+      else if (grepl("windSpeed", f)) {
         p <- "WNDSPD"
-      } else if (grepl("relHum", f)){
+      }
+      else if (grepl("relHum", f)) {
         p <- "RELHUM"
-      } 
+      }
+      # fdir <- unlist(strsplit(f, "/")) # no more required
       
-      fdir <- unlist(strsplit(f, "/"))
       nc <- brick(paste0(dir_path, "/", f))
-      ##Extract values for stations and create data.frame
       ex_m <- raster::extract(nc, st)
-      df <- cbind.data.frame(nc@z[[1]],t(ex_m)[1:(ncol(ex_m)),])
+      df <- cbind.data.frame(nc@z[[1]], t(ex_m)[1:(ncol(ex_m)),])
+      
+      #df <- as.data.frame(df) # necessary to assign colnames
       colnames(df) <- c("DATE", st$ID)
-      rownames(df) <- NULL
-      if (p == "RELHUM" && mean(ex_m, na.rm = TRUE)>1){
-        df[,st$ID] <- df[,st$ID]/100
+      if (p == "RELHUM" && mean(ex_m, na.rm = TRUE) > 1) {
+        df[, st$ID] <- df[, st$ID]/100
         warning("RELHUM values are larger than 1. Correction is applied by dividing it with 100. Values should be between 0 to 1.")
-      } 
-      ##Removing columns without records (case no overlap)
-      df <- df[,colSums(is.na(df))==0]
-      ##Creating meteo_lst list 
-      cl_list[[fdir[1]]][[fdir[2]]][["stations"]] <- st
-      for(id in st$ID){
-        if(id %in% names(df)){
-          cl_list[[fdir[1]]][[fdir[2]]][["data"]][[id]][[p]] <- df[,c("DATE", id)] %>% 
-            drop_na() %>% 
+      }
+      df <- df[, colSums(is.na(df)) == 0]
+      
+      #cl_list[[fdir[1]]][[fdir[2]]][["stations"]] <- st # no more required
+      for (id in st$ID) {
+        if (id %in% names(df)) {
+          cl_list[['data']][[id]][[p]] <- df[,c("DATE", id)] %>%
+            drop_na() %>%
             mutate(DATE = as.POSIXct(DATE, "%Y-%m-%d", tz = "UTC"))
-          colnames(cl_list[[fdir[1]]][[fdir[2]]][["data"]][[id]][[p]]) <- c("DATE", p)
-          ##If PCP below 0.2, than 0
-          if(p == "PCP" && min(cl_list[[fdir[1]]][[fdir[2]]][["data"]][[id]][[p]][[p]], na.rm = TRUE)<0.2){
-            cl_list[[fdir[1]]][[fdir[2]]][["data"]][[id]][[p]][[p]] <- ifelse(
-              cl_list[[fdir[1]]][[fdir[2]]][["data"]][[id]][[p]][[p]]<0.2, 0, 
-              cl_list[[fdir[1]]][[fdir[2]]][["data"]][[id]][[p]][[p]])
+          
+          colnames(cl_list[['data']][[id]][[p]]) <- c("DATE",p)
+          
+          if (p == "PCP" && min(cl_list[['data']][[id]][[p]][[p]], na.rm = TRUE) < 0.2) {
+            cl_list[['data']][[id]][[p]][[p]] <- ifelse(cl_list[['data']][[id]][[p]][[p]] < 0.2,
+                                                        0, cl_list[['data']][[id]][[p]][[p]])
           }
         }
       }
